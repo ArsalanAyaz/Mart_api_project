@@ -2,7 +2,6 @@ from fastapi import FastAPI, HTTPException, Query
 from sqlmodel import Session, select
 from contextlib import asynccontextmanager
 from app.db import create_db_and_tables
-from typing import Optional
 from app.db import engine
 from app.model import Users
 from app.schema import UserCreate, UserPublic, UserUpdate
@@ -35,7 +34,7 @@ async def lifespan(app:FastAPI):
     create_db_and_tables()
     consumer_task = asyncio.create_task(start_consumer("user", "broker:19092"))
     yield
-
+    print("=============== Tables created & event fired ============")
 
 app = FastAPI(lifespan=lifespan)
 
@@ -115,10 +114,11 @@ def get_single_user(user_id: int):
 @app.patch("/update_user/{user_id}", response_model=UserPublic)
 async def update_user(user_id: int, user: UserUpdate):
     async with AIOKafkaProducer(bootstrap_servers='broker:19092') as producer:
+        # Update the user in the database
         with Session(engine) as session:
             db_user = session.get(Users, user_id)
             if not db_user:
-                raise HTTPException(status_code=404, detail="user not found")
+                raise HTTPException(status_code=404, detail="User not found")
             user_data = user.model_dump(exclude_unset=True)
             for key, value in user_data.items():
                 setattr(db_user, key, value)
@@ -126,17 +126,25 @@ async def update_user(user_id: int, user: UserUpdate):
             session.commit()
             session.refresh(db_user)
         
-            user_public = UserPublic(id=db_user.id, name=db_user.name, password=db_user.password, email=db_user.email, phone=db_user.phone)
-            
-            # Send update message to Kafka
-            update_msg = json.dumps({"action": "update", "user": user_public.dict()}).encode("utf-8")
-            try:
-                await producer.send_and_wait("order", update_msg)
-                print(f"Sent update message to Kafka: {update_msg}")
-            except Exception as e:
-                print(f"Error sending update message to Kafka: {e}")
+            user_public = UserPublic(
+                id=db_user.id, 
+                name=db_user.name, 
+                password=db_user.password, 
+                email=db_user.email, 
+                phone=db_user.phone
+            )
+        
+        # Send update message to Kafka
+        update_msg = json.dumps({"action": "update", "user": user_public.model_dump()}).encode("utf-8")
+        try:
+            await producer.send_and_wait("user", update_msg)
+            print(f"Sent update message to Kafka: {update_msg}")
+        except Exception as e:
+            print(f"Error sending update message to Kafka: {e}")
     
     return user_public
+
+
 
 
 
@@ -165,7 +173,7 @@ async def delete_user(user_id: int):
             # Send delete message to Kafka
             delete_msg = json.dumps({"action": "delete", "user_id": user_id}).encode("utf-8")
             try:
-                await producer.send_and_wait("order", delete_msg)
+                await producer.send_and_wait("user", delete_msg)
                 print(f"Sent delete message to Kafka: {delete_msg}")
             except Exception as e:
                 print(f"Error sending delete message to Kafka: {e}")

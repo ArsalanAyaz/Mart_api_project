@@ -16,7 +16,7 @@ class productCreate(productBase):
 class productUpdate(productBase):
     pass 
 
-class productResponse(productBase):
+class productPublic(productBase):
     id: int
 
     class Config:
