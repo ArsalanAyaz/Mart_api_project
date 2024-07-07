@@ -1,0 +1,269 @@
+version: '3.8'
+
+name: mart_api
+
+services:
+
+# service 01
+
+  product_ser:
+    build:
+      context: ./product_ser
+      dockerfile: Dockerfile.dev
+    container_name: product_ser_Cont  
+    volumes:
+      - ./product_ser:/code  # Sync local development directory with the container
+    depends_on:
+        - product_ser_postgres_db
+        - broker
+    ports:
+      - "8000:8000"  # Expose container port 8000 to host port 8000  
+
+
+# service 02
+
+  user_ser:
+    build:
+      context: ./user_ser
+      dockerfile: Dockerfile.dev
+    container_name: user_ser_Cont  
+    volumes:
+      - ./user_ser:/code  # Sync local development directory with the container
+    depends_on:
+        - user_ser_postgres_db
+        - broker
+    ports:
+      - "8001:8001"  # Expose container port 8000 to host port 8000  
+
+
+# service 03
+
+  payment_ser:
+    build:
+      context: ./payment_ser
+      dockerfile: Dockerfile.dev
+    container_name: payment_ser_Cont  
+    volumes:
+      - ./payment_ser:/code  # Sync local development directory with the container
+    depends_on:
+        - payment_ser_postgres_db
+        - broker
+    ports:
+      - "8002:8002"  # Expose container port 8000 to host port 8000  
+
+
+# service 04
+
+  order_ser:
+    build:
+      context: ./order_ser
+      dockerfile: Dockerfile.dev
+    container_name: order_ser_Cont  
+    volumes:
+      - ./order_ser:/code  # Sync local development directory with the container
+    depends_on:
+        - order_ser_postgres_db
+        - broker
+    ports:
+      - "8003:8003"  # Expose container port 8000 to host port 8000  
+
+
+# service 05
+
+  notification_ser:
+    build:
+      context: ./notification_ser
+      dockerfile: Dockerfile.dev
+    container_name: notification_ser_Cont  
+    volumes:
+      - ./notification_ser:/code  # Sync local development directory with the container
+    depends_on:
+        - notification_ser_postgres_db
+        - broker
+    ports:
+      - "8004:8004"  # Expose container port 8000 to host port 8000  
+
+
+
+# service 06
+
+  inventory_ser:
+    build:
+      context: ./inventory_ser
+      dockerfile: Dockerfile.dev
+    container_name: inventory_ser_Cont  
+    volumes:
+      - ./inventory_ser:/code  # Sync local development directory with the container
+    depends_on:
+        - inventory_ser_postgres_db
+        - broker
+    ports:
+      - "8005:8005"  # Expose container port 8005 to host port 8005  
+
+
+# ================= databases ===================================================
+
+
+# service:07  product service db
+
+  product_ser_postgres_db:
+    image: postgres:latest  # Use the official PostgreSQL image
+    restart: always
+    container_name: product_ser_postgres_db_Container
+    environment:
+        - POSTGRES_USER=ziakhan
+        - POSTGRES_PASSWORD=my_password
+        - POSTGRES_DB=mydatabase
+    ports:
+        - '5407:5432'
+    volumes:
+        - product_ser_postgres_db:/var/lib/postgresql/data
+
+
+# service:08  user service db
+
+  user_ser_postgres_db:
+    image: postgres:latest  # Use the official PostgreSQL image
+    restart: always
+    container_name: user_ser_postgres_db_Container
+    environment:
+        - POSTGRES_USER=ziakhan
+        - POSTGRES_PASSWORD=my_password
+        - POSTGRES_DB=mydatabase
+    ports:
+        - '5408:5432'
+    volumes:
+        - user_ser_postgres_db:/var/lib/postgresql/data
+
+
+# service:09  payment service db
+
+  payment_ser_postgres_db:
+    image: postgres:latest  # Use the official PostgreSQL image
+    restart: always
+    container_name: payment_ser_postgres_db_Container
+    environment:
+        - POSTGRES_USER=ziakhan
+        - POSTGRES_PASSWORD=my_password
+        - POSTGRES_DB=mydatabase
+    ports:
+        - '5409:5432'
+    volumes:
+        - payment_ser_postgres_db:/var/lib/postgresql/data
+
+
+# service:10  order service db
+
+  order_ser_postgres_db:
+    image: postgres:latest  # Use the official PostgreSQL image
+    restart: always
+    container_name: order_ser_postgres_db_Container
+    environment:
+        - POSTGRES_USER=ziakhan
+        - POSTGRES_PASSWORD=my_password
+        - POSTGRES_DB=mydatabase
+    ports:
+        - '5410:5432'
+    volumes:
+        - order_ser_postgres_db:/var/lib/postgresql/data
+
+
+# service:11  notification service db
+
+  notification_ser_postgres_db:
+    image: postgres:latest  # Use the official PostgreSQL image
+    restart: always
+    container_name: notification_ser_postgres_db_Container
+    environment:
+        - POSTGRES_USER=ziakhan
+        - POSTGRES_PASSWORD=my_password
+        - POSTGRES_DB=mydatabase
+    ports:
+        - '5411:5432'
+    volumes:
+        - notification_ser_postgres_db:/var/lib/postgresql/data
+
+
+# service:12  inventory service db
+
+  inventory_ser_postgres_db:
+    image: postgres:latest  # Use the official PostgreSQL image
+    restart: always
+    container_name: inventory_ser_postgres_db_Container
+    environment:
+        - POSTGRES_USER=ziakhan
+        - POSTGRES_PASSWORD=my_password
+        - POSTGRES_DB=mydatabase
+    ports:
+        - '5412:5432'
+    volumes:
+        - inventory_ser_postgres_db:/var/lib/postgresql/data
+
+
+# =============================================================================
+
+
+  broker:
+    image: apache/kafka:3.7.0
+    hostname: broker
+    container_name: broker
+    ports:
+      - '9092:9092'
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT_HOST://localhost:9092,PLAINTEXT://broker:19092'
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@broker:29093'
+      KAFKA_LISTENERS: 'CONTROLLER://:29093,PLAINTEXT_HOST://:9092,PLAINTEXT://:19092'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      CLUSTER_ID: '4L6g3nShT-eMCtK--X86sw'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+
+
+# =============================================================================
+
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui
+    container_name: kafka-ui
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: 'Local Kafka Cluster'
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: 'broker:19092'
+      DYNAMIC_CONFIG_ENABLED: "true"
+    depends_on:
+      - broker
+
+# ==============================================================================
+
+volumes:
+  product_ser_postgres_db:
+    driver: local
+
+  user_ser_postgres_db:
+    driver: local
+
+  payment_ser_postgres_db:
+    driver: local
+
+  order_ser_postgres_db:
+    driver: local
+
+  notification_ser_postgres_db:
+    driver: local
+
+  inventory_ser_postgres_db:
+    driver: local
+
+# ==============================================================================
+
+networks:
+  default:
+    driver: bridge
