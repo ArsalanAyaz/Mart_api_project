@@ -11,50 +11,34 @@ import json
 import asyncio
 
 
-
-
-async def consumer(topic, broker):
-    consumer = AIOKafkaConsumer(
+async def start_consumer(topic, broker):
+    kafka_consumer = AIOKafkaConsumer(
         topic,
         bootstrap_servers=broker,
-        group_id="my-group"
+        group_id="user_Cons"
     )
 
-    await consumer.start()
+    await kafka_consumer.start()
     try:
-        async for msg in consumer:
-            print("Consumed message: ", msg.topic, msg.partition, msg.offset, msg.key, msg.value.decode("utf-8"), msg.timestamp)
+        async for msg in kafka_consumer:
+            print(f"Consumed message: {msg.topic}{msg.value.decode('utf-8')}")
     except Exception as e:
-        print(f"consumer error : {e} ")
-    
+        print(f"Consumer error: {e}")
     finally:
-        await consumer.stop()
+        await kafka_consumer.stop()
 
-    return {"data": consumer}    
-
-
+        
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    print("=============== tables creating & event fire ===========")
+async def lifespan(app:FastAPI):
+    print("=============== Tables creating & event fire ============")
     create_db_and_tables()
-    task = asyncio.create_task(consumer("order","broker:19092"))
+    consumer_task = asyncio.create_task(start_consumer("user", "broker:19092"))
     yield
-    task.cancel()
-    await task
-    print("=============== tables created ===========")
 
-app : FastAPI = FastAPI(
-    lifespan=lifespan,
-    title="user service",
-    version="0.0.1",
-    # servers=[
-    #     {
-    #         "url": "http://127.0.0.1:8001",
-    #         "description": "user service server"
-    #     }
-    # ]
-)    
+
+app = FastAPI(lifespan=lifespan)
+
 
 @app.get("/")
 def start():
@@ -62,47 +46,18 @@ def start():
 
 
 
-
-# ==================== kafka ========================
-
-
-# producer
-
-# @app.post("/create_user", response_model=UserPublic)
-# # @app.post("/create_user")
-# async def create_user(user: UserCreate):
-
-#     producer = AIOKafkaProducer(bootstrap_servers='broker:19092')
-#     userJson = json.dumps(user.__dict__).encode("utf-8")
-    
-#     await producer.start()
-#     try:
-#         await producer.send_and_wait("order", userJson)
-#     finally:
-#         await producer.stop()
-
-#     with Session(engine) as session: # save to database
-#         db_user = Users.model_validate(user)
-#         session.add(db_user)
-#         session.commit()
-#         session.refresh(db_user)
-
-#     user_public = UserPublic(id=db_user.id, name=db_user.name, password=db_user.password, email=db_user.email, phone=db_user.phone)
-#     # return userJson
-#     return user_public
-
 @app.post("/create_user", response_model=UserPublic)
 async def create_user(user: UserCreate):
     producer = AIOKafkaProducer(bootstrap_servers='broker:19092')
     userJson = json.dumps(user.__dict__).encode("utf-8")
-    
+
     print(f"Sending message to Kafka: {userJson}")
-    
+
     await producer.start()
     try:
-        await producer.send_and_wait("order", userJson)
+        await producer.send_and_wait("user", userJson)
     except Exception as e:
-        print(f"producer error : {e}")    
+        print(f"producer error : {e}")
     finally:
         await producer.stop()
 
@@ -118,84 +73,101 @@ async def create_user(user: UserCreate):
 
 
 
-
-# consumer
-# @app.get("/consumer")
-# async def consumer():
-#     consumer = AIOKafkaConsumer( 
-
-#         'order', 
-#         bootstrap_servers='broker:19092', 
-#         group_id="my-group"
-        
-#         )
-    
-#     await consumer.start()
-#     try:
-#         # Consume messages
-#         async for msg in consumer:
-#             print("consumed: ", msg.topic, msg.partition, msg.offset,
-#                   msg.key, msg.value, msg.timestamp)
-#     finally:
-#         # Will leave consumer group; perform autocommit if enabled.
-#         await consumer.stop()
-
-#     return {"data": consumer}
-
-
-
-# ============================================================
-
-
-
-
-# @app.post("/create_user/", response_model=UserPublic)
-# def create_user(user: UserCreate):
-#     with Session(engine) as session:
-#         db_user = Users.model_validate(user)
-#         session.add(db_user)
-#         session.commit()
-#         session.refresh(db_user)
-#         return db_user
-
-
 @app.get("/get_all_users/", response_model=list[UserPublic])
 def get_all_users(offset: int = 0, limit: int = Query(default=100, le=100)):
     with Session(engine) as session:
         users = session.exec(select(Users).offset(offset).limit(limit)).all()
         return users
+    
 
 
-@app.get("/get_single_user/{hero_id}", response_model=UserPublic)
+
+@app.get("/get_single_user/{user_id}", response_model=UserPublic)
 def get_single_user(user_id: int):
     with Session(engine) as session:
         user = session.get(Users, user_id)
         if not user:
             raise HTTPException(status_code=404, detail="user not found")
         return user
+    
 
 
-@app.patch("/update_user/{hero_id}", response_model=UserPublic)
-def update_user(user_id: int, user: UserUpdate):
-    with Session(engine) as session:
-        db_user = session.get(Users, user_id)
-        if not db_user:
-            raise HTTPException(status_code=404, detail="user not found")
-        user_data = user.model_dump(exclude_unset=True)
-        for key, value in user_data.items():
-            setattr(db_user, key, value)
-        session.add(db_user)
-        session.commit()
-        session.refresh(db_user)
-        return db_user
 
 
-@app.delete("/delete_user/{hero_id}")
-def delete_user(user_id: int):
-    with Session(engine) as session:
-        user = session.get(Users, user_id)
-        if not user:
-            raise HTTPException(status_code=404, detail="user not found")
-        session.delete(user)
-        session.commit()
-        return {"ok": True}
+
+# @app.patch("/update_user/{user_id}", response_model=UserPublic)
+# def update_user(user_id: int, user: UserUpdate):
+#     with Session(engine) as session:
+#         db_user = session.get(Users, user_id)
+#         if not db_user:
+#             raise HTTPException(status_code=404, detail="user not found")
+#         user_data = user.model_dump(exclude_unset=True)
+#         for key, value in user_data.items():
+#             setattr(db_user, key, value)
+#         session.add(db_user)
+#         session.commit()
+#         session.refresh(db_user)
+#         return db_user
+
+
+
+
+@app.patch("/update_user/{user_id}", response_model=UserPublic)
+async def update_user(user_id: int, user: UserUpdate):
+    async with AIOKafkaProducer(bootstrap_servers='broker:19092') as producer:
+        with Session(engine) as session:
+            db_user = session.get(Users, user_id)
+            if not db_user:
+                raise HTTPException(status_code=404, detail="user not found")
+            user_data = user.model_dump(exclude_unset=True)
+            for key, value in user_data.items():
+                setattr(db_user, key, value)
+            session.add(db_user)
+            session.commit()
+            session.refresh(db_user)
+        
+            user_public = UserPublic(id=db_user.id, name=db_user.name, password=db_user.password, email=db_user.email, phone=db_user.phone)
+            
+            # Send update message to Kafka
+            update_msg = json.dumps({"action": "update", "user": user_public.dict()}).encode("utf-8")
+            try:
+                await producer.send_and_wait("order", update_msg)
+                print(f"Sent update message to Kafka: {update_msg}")
+            except Exception as e:
+                print(f"Error sending update message to Kafka: {e}")
+    
+    return user_public
+
+
+
+# @app.delete("/delete_user/{user_id}")
+# def delete_user(user_id: int):
+#     with Session(engine) as session:
+#         user = session.get(Users, user_id)
+#         if not user:
+#             raise HTTPException(status_code=404, detail="user not found")
+#         session.delete(user)
+#         session.commit()
+#         return {"ok": True}
+
+
+
+@app.delete("/delete_user/{user_id}")
+async def delete_user(user_id: int):
+    async with AIOKafkaProducer(bootstrap_servers='broker:19092') as producer:
+        with Session(engine) as session:
+            user = session.get(Users, user_id)
+            if not user:
+                raise HTTPException(status_code=404, detail="user not found")
+            session.delete(user)
+            session.commit()
+        
+            # Send delete message to Kafka
+            delete_msg = json.dumps({"action": "delete", "user_id": user_id}).encode("utf-8")
+            try:
+                await producer.send_and_wait("order", delete_msg)
+                print(f"Sent delete message to Kafka: {delete_msg}")
+            except Exception as e:
+                print(f"Error sending delete message to Kafka: {e}")
+
+    return {"ok": True}
