@@ -11,4 +11,4 @@ class Orders(SQLModel, table=True):
     quantity : int
     price: float
     status: str
-    created_at : datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at : datetime
