@@ -38,7 +38,7 @@ async def lifespan(app: FastAPI):
 
 app : FastAPI = FastAPI(
     lifespan=lifespan,
-    title="payment service",
+    title="notification service",
     version="0.0.1",
     # servers=[
     #     {
@@ -52,7 +52,7 @@ app : FastAPI = FastAPI(
 
 @app.get("/")
 def start():
-    return {"service": "payment service"}
+    return {"service": "notification service"}
 
 
 

@@ -36,13 +36,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     lifespan=lifespan,
-    title="payment service",
+    title="order service",
     version="0.0.1",
 )    
 
 @app.get("/")
 def start():
-    return {"service": "payment service"}
+    return {"service": "order service"}
 
 @app.post("/create_order", response_model=OrderPublic)
 async def create_order(order: CreateOrder):

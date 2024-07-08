@@ -18,6 +18,7 @@ class InventoryPublic(SQLModel):
     product_id: int
     quantity: int
     location: Optional[str] = None
+    status: str = Field(default="Pending")
     last_updated: datetime
 
 
