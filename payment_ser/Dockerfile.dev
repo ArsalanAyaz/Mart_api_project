@@ -4,6 +4,12 @@ LABEL maintainer="Arsalan Ayaz"
 
 WORKDIR /code/
 
+# Install necessary system dependencies for Protobuf
+RUN apt-get update && \
+    apt-get install -y protobuf-compiler && \
+    rm -rf /var/lib/apt/lists/*
+
+
 RUN pip install poetry
 
 COPY . /code/

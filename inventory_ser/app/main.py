@@ -11,7 +11,8 @@ import json
 from datetime import datetime
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-
+from app import inventory_pb2
+from google.protobuf.timestamp_pb2 import Timestamp
 
 async def consumer(topic, broker):
     consumer = AIOKafkaConsumer(
@@ -22,7 +23,10 @@ async def consumer(topic, broker):
     await consumer.start()
     try:       
         async for msg in consumer:
-            print(f"consumed:  {msg.topic}, {msg.value.decode('utf-8')}")  
+            print(f"Serialized data ....:   {msg.value}")
+            Deserialized_data = inventory_pb2.Inventory_proto()
+            Deserialized_data.ParseFromString(msg.value)
+            print(f"Serialized data ....:   {Deserialized_data}")  
     except Exception as e:
         print("consumer error", e)
     finally:  
@@ -58,13 +62,27 @@ def start():
 
 @app.post("/create_inventory", response_model=InventoryPublic)
 async def create_inventory(inventory: InventoryCreate):
+
+
+    proto_data = inventory_pb2.Inventory_proto(
+
+        product_id = inventory.product_id,
+        quantity = inventory.quantity,
+        location = inventory.location,
+
+    )
+
+    Serialized_data = proto_data.SerializeToString()
+
+
     producer = AIOKafkaProducer(bootstrap_servers='broker:19092')
-    inventory_json = json.dumps(inventory.model_dump()).encode('utf-8')  # Use model_dump for serialization
+    # inventory_json = json.dumps(inventory.model_dump()).encode('utf-8')  # Use model_dump for serialization
 
     await producer.start()
 
     try:
-        await producer.send_and_wait("inventory", inventory_json)
+        await producer.send_and_wait("inventory", Serialized_data)
+        # await producer.send_and_wait("inventory", inventory_json)
     except Exception as e:
         print("create_inventory error", e)
         raise HTTPException(status_code=500, detail="Error sending inventory to Kafka")
@@ -91,15 +109,15 @@ async def create_inventory(inventory: InventoryCreate):
         last_updated=last_updated_str   # Use converted string
     )
         
-    # Serialize inventory_public to JSON
-    inventory_json = {
-        "id": inventory_public.id,
-        "product_id": inventory_public.product_id,
-        "quantity": inventory_public.quantity,
-        "location": inventory_public.location,
-        "status": inventory_public.status,
-        "last_updated": str(inventory_public.last_updated)   # Convert datetime to string
-    }
+    # # Serialize inventory_public to JSON
+    # inventory_json = {
+    #     "id": inventory_public.id,
+    #     "product_id": inventory_public.product_id,
+    #     "quantity": inventory_public.quantity,
+    #     "location": inventory_public.location,
+    #     "status": inventory_public.status,
+    #     "last_updated": str(inventory_public.last_updated)   # Convert datetime to string
+    # }
     
     return inventory_public
 
@@ -127,6 +145,21 @@ def get_single_inventory(inventory_id: int):
 
 @app.patch("/update_inventory/{inventory_id}", response_model=InventoryPublic)
 async def update_inventory(inventory_id: int, inventory: InventoryUpdate):
+
+    proto_data = inventory_pb2.Inventory_proto()
+    proto_data.id = inventory_id
+    proto_data.product_id = inventory.product_id
+    proto_data.quantity= inventory.quantity
+    proto_data.location= inventory.location
+
+    time = Timestamp()
+    time.GetCurrentTime()
+    proto_data.last_updated.CopyFrom(time)
+
+
+
+    Serialized_data = proto_data.SerializeToString()
+
     async with AIOKafkaProducer(bootstrap_servers='broker:19092') as producer:
         # Update the inventory in the database
         with Session(engine) as session:
@@ -154,21 +187,23 @@ async def update_inventory(inventory_id: int, inventory: InventoryUpdate):
             last_updated=last_updated_str   # Use converted string
         )
             
-        # Serialize inventory_public to JSON
-        inventory_json = {
-            "id": inventory_public.id,
-            "product_id": inventory_public.product_id,
-            "quantity": inventory_public.quantity,
-            "location": inventory_public.location,
-            "status": inventory_public.status,
-            "last_updated": str(inventory_public.last_updated)   # Convert datetime to string
-        }
+        # # Serialize inventory_public to JSON
+        # inventory_json = {
+        #     "id": inventory_public.id,
+        #     "product_id": inventory_public.product_id,
+        #     "quantity": inventory_public.quantity,
+        #     "location": inventory_public.location,
+        #     "status": inventory_public.status,
+        #     "last_updated": str(inventory_public.last_updated)   # Convert datetime to string
+        # }
     
         # Send update message to Kafka
-        inventory_Json_msg = json.dumps({"action": "update", "inventory": inventory_json}).encode("utf-8")
+        # inventory_Json_msg = json.dumps({"action": "update", "inventory": inventory_json}).encode("utf-8")
         try:
-            await producer.send_and_wait("inventory", inventory_Json_msg)
-            print(f"Sent update message to Kafka: {inventory_Json_msg}")
+            await producer.send_and_wait("inventory", Serialized_data)
+            print(f"Sent update message to Kafka: {Serialized_data}")
+            # await producer.send_and_wait("inventory", inventory_Json_msg)
+            # print(f"Sent update message to Kafka: {inventory_Json_msg}")
         except Exception as e:
             print(f"Error sending update message to Kafka: {e}")
 
@@ -180,6 +215,13 @@ async def update_inventory(inventory_id: int, inventory: InventoryUpdate):
 
 @app.delete("/delete_inventory/{inventory_id}")
 async def delete_inventory(inventory_id: int):
+
+    proto_data = inventory_pb2.Inventory_proto(
+        id = inventory_id,
+    )
+
+    Serialized_data = proto_data.SerializeToString()
+
     async with AIOKafkaProducer(bootstrap_servers='broker:19092') as producer:
         with Session(engine) as session:
             inventory = session.get(Inventory, inventory_id)
@@ -189,11 +231,13 @@ async def delete_inventory(inventory_id: int):
             session.commit()
         
         
-        delete_msg = json.dumps({"action": "delete", "inventory_id": inventory_id}).encode("utf-8")  
+        # delete_msg = json.dumps({"action": "delete", "inventory_id": inventory_id}).encode("utf-8")  
 
         try:
-            await producer.send_and_wait("inventory", delete_msg)
-            print(f"Sent delete message to Kafka: {delete_msg}")
+            await producer.send_and_wait("inventory", Serialized_data)
+            print(f"Sent delete message to Kafka: {Serialized_data}")
+            # await producer.send_and_wait("inventory", delete_msg)
+            # print(f"Sent delete message to Kafka: {delete_msg}")
         except Exception as e:
             print(f"Delete error: {e}")
             raise HTTPException(status_code=500, detail="Error sending delete message to Kafka")  

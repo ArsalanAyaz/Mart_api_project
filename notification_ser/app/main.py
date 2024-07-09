@@ -11,6 +11,8 @@ import json
 from datetime import datetime
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
+from app import notifi_pb2
+from google.protobuf.timestamp_pb2 import Timestamp
 
 
 async def consumer(topic, broker):
@@ -22,7 +24,10 @@ async def consumer(topic, broker):
     await consumer.start()
     try:       
         async for msg in consumer:
-            print(f"consumed:  {msg.topic}, {msg.value.decode('utf-8')}")  
+            print(f"Serialized Data .......:   {msg.value}") 
+            Deserialized_data =  notifi_pb2.Notification_proto()
+            Deserialized_data.ParseFromString(msg.value)
+            print(f"Deserialized Data .......:   {Deserialized_data}")
     except Exception as e:
         print("consumer error", e)
     finally:  
@@ -58,13 +63,24 @@ def start():
 
 @app.post("/create_notification", response_model=NotificationPublic)
 async def create_notification(notification: NotificationCreate):
+
+    proto_data = notifi_pb2.Notification_proto(
+        
+        user_id = notification.user_id,
+        message = notification.message,
+        type = notification.type,
+        status = notification.status,
+    )
+
+    Serialized_data = proto_data.SerializeToString()
+
     producer = AIOKafkaProducer(bootstrap_servers='broker:19092')
-    notification_json = json.dumps(notification.model_dump()).encode('utf-8')  # Use model_dump for serialization
+    #notification_json = json.dumps(notification.model_dump()).encode('utf-8')  # Use model_dump for serialization
 
     await producer.start()
 
     try:
-        await producer.send_and_wait("notification", notification_json)
+        await producer.send_and_wait("notification", Serialized_data)
     except Exception as e:
         print("create_notification error", e)
         raise HTTPException(status_code=500, detail="Error sending notification to Kafka")
@@ -93,15 +109,15 @@ async def create_notification(notification: NotificationCreate):
     )
         
     # Serialize notification_public to JSON
-    notification_json = {
-        "id": notification_public.id,
-        "user_id": notification_public.user_id,
-        "message": notification_public.message,
-        "type": notification_public.type,
-        "status": notification_public.status,
-        "created_at": str(notification_public.created_at),  # Convert datetime to string
-        "updated_at": str(notification_public.updated_at)   # Convert datetime to string
-    }
+    # notification_json = {
+    #     "id": notification_public.id,
+    #     "user_id": notification_public.user_id,
+    #     "message": notification_public.message,
+    #     "type": notification_public.type,
+    #     "status": notification_public.status,
+    #     "created_at": str(notification_public.created_at),  # Convert datetime to string
+    #     "updated_at": str(notification_public.updated_at)   # Convert datetime to string
+    # }
     
     return notification_public
 
@@ -129,6 +145,20 @@ def get_single_notification(notification_id: int):
 
 @app.patch("/update_notification/{notification_id}", response_model=NotificationPublic)
 async def update_notification(notification_id: int, notification: NotificationUpdate):
+
+    proto_data = notifi_pb2.Notification_proto()
+    proto_data.id = notification_id
+    proto_data.user_id=notification.user_id
+    proto_data.message=notification.message
+    proto_data.type=notification.type
+    proto_data.status=notification.status
+
+    time = Timestamp()
+    time.GetCurrentTime()
+    proto_data.updated_at.CopyFrom(time)
+
+    Serialized_data = proto_data.SerializeToString()
+
     async with AIOKafkaProducer(bootstrap_servers='broker:19092') as producer:
         # Update the notification in the database
         with Session(engine) as session:
@@ -159,21 +189,23 @@ async def update_notification(notification_id: int, notification: NotificationUp
         )
         
         # Serialize notification_public to JSON
-        notification_json = {
-            "id": notification_public.id,
-            "user_id": notification_public.user_id,
-            "message": notification_public.message,
-            "type": notification_public.type,
-            "status": notification_public.status,
-            "created_at": str(notification_public.created_at),  # Convert datetime to string
-            "updated_at": str(notification_public.updated_at)   # Convert datetime to string
-        }
+        # notification_json = {
+        #     "id": notification_public.id,
+        #     "user_id": notification_public.user_id,
+        #     "message": notification_public.message,
+        #     "type": notification_public.type,
+        #     "status": notification_public.status,
+        #     "created_at": str(notification_public.created_at),  # Convert datetime to string
+        #     "updated_at": str(notification_public.updated_at)   # Convert datetime to string
+        # }
 
         # Send update message to Kafka
-        notification_Json_msg = json.dumps({"action": "update", "notification": notification_json}).encode("utf-8")
+        # notification_Json_msg = json.dumps({"action": "update", "notification": notification_json}).encode("utf-8")
         try:
-            await producer.send_and_wait("notification", notification_Json_msg)
-            print(f"Sent update message to Kafka: {notification_Json_msg}")
+            await producer.send_and_wait("notification", Serialized_data)
+            print(f"Sent update message to Kafka: {Serialized_data}")
+            # await producer.send_and_wait("notification", notification_Json_msg)
+            # print(f"Sent update message to Kafka: {notification_Json_msg}")
         except Exception as e:
             print(f"Error sending update message to Kafka: {e}")
 
@@ -184,7 +216,15 @@ async def update_notification(notification_id: int, notification: NotificationUp
 
 
 @app.delete("/delete_notification/{notification_id}")
+
 async def delete_notification(notification_id: int):
+
+    proto_data = notifi_pb2.Notification_proto(
+       id = notification_id
+     )
+    
+    Serialized_data = proto_data.SerializeToString()
+
     async with AIOKafkaProducer(bootstrap_servers='broker:19092') as producer:
         with Session(engine) as session:
             notification = session.get(Notifications, notification_id)
@@ -194,11 +234,13 @@ async def delete_notification(notification_id: int):
             session.commit()
         
         
-        delete_msg = json.dumps({"action": "delete", "notification_id": notification_id}).encode("utf-8")  
+        #delete_msg = json.dumps({"action": "delete", "notification_id": notification_id}).encode("utf-8")  
 
         try:
-            await producer.send_and_wait("notification", delete_msg)
-            print(f"Sent delete message to Kafka: {delete_msg}")
+            await producer.send_and_wait("notification", Serialized_data)
+            print(f"Sent delete message to Kafka: {Serialized_data}")
+            # await producer.send_and_wait("notification", delete_msg)
+            # print(f"Sent delete message to Kafka: {delete_msg}")
         except Exception as e:
             print(f"Delete error: {e}")
             raise HTTPException(status_code=500, detail="Error sending delete message to Kafka")  
