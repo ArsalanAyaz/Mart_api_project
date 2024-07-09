@@ -9,19 +9,23 @@ from app.schema import productCreate, productPublic, productUpdate
 from aiokafka import AIOKafkaProducer, AIOKafkaConsumer
 import json
 import asyncio
+from app import product_pb2
 
 
 async def start_consumer(topic, broker):
     kafka_consumer = AIOKafkaConsumer(
         topic,
         bootstrap_servers=broker,
-        group_id="product_Cons"
+        group_id="product_Cons1"
     )
 
     await kafka_consumer.start()
     try:
         async for msg in kafka_consumer:
-            print(f"Consumed message: {msg.topic}{msg.value.decode('utf-8')}")
+            print(f"Serialized message in consumer.... : {msg.value}")
+            deserialized_product_data = product_pb2.Product_proto()
+            deserialized_product_data.ParseFromString(msg.value)
+            print(f"Deserialized message in consumer.... : {msg.value}")
     except Exception as e:
         print(f"Consumer error: {e}")
     finally:
@@ -49,14 +53,28 @@ def start():
 
 @app.post("/create_product", response_model=productPublic)
 async def create_product(product: productCreate):
-    producer = AIOKafkaProducer(bootstrap_servers='broker:19092')
-    productJson = json.dumps(product.__dict__).encode("utf-8")
 
-    print(f"Sending message to Kafka: {productJson}")
+    proto_data = product_pb2.Product_proto(
+
+        name = product.name,
+        description=product.description,
+        price= product.price,
+
+
+    )
+
+    serialized_product_data = proto_data.SerializeToString()
+
+
+    producer = AIOKafkaProducer(bootstrap_servers='broker:19092')
+    #productJson = json.dumps(product.__dict__).encode("utf-8")
+
+    #print(f"Sending message to Kafka: {productJson}")
 
     await producer.start()
     try:
-        await producer.send_and_wait("product", productJson)
+        #await producer.send_and_wait("product", productJson)
+        await producer.send_and_wait("product", serialized_product_data)
     except Exception as e:
         print(f"producer error : {e}")
     finally:
@@ -116,6 +134,20 @@ def get_single_product(product_id: int):
 
 @app.patch("/update_product/{product_id}", response_model=productPublic)
 async def update_product(product_id: int, product: productUpdate):
+
+    proto_data = product_pb2.Product_proto(
+
+        id = product_id,
+        name= product.name,
+        description= product.description,
+        price= product.price,
+
+
+    )
+
+    Deserialized_product_data = proto_data.SerializeToString()
+
+
     async with AIOKafkaProducer(bootstrap_servers='broker:19092') as producer:
         with Session(engine) as session:
             db_product = session.get(Product, product_id)
@@ -131,10 +163,12 @@ async def update_product(product_id: int, product: productUpdate):
             product_public = productPublic(id=db_product.id, name=db_product.name, description=db_product.description, price=db_product.price)
             
             # Send update message to Kafka
-            update_msg = json.dumps({"action": "update", "product": product_public.model_dump()}).encode("utf-8")
+            #update_msg = json.dumps({"action": "update", "product": product_public.model_dump()}).encode("utf-8")
             try:
-                await producer.send_and_wait("product", update_msg)
-                print(f"Sent update message to Kafka: {update_msg}")
+                await producer.send_and_wait("product", Deserialized_product_data)
+                # await producer.send_and_wait("product", update_msg)
+                # print(f"Sent update message to Kafka: {update_msg}")
+                print(f"Sent update message to Kafka: {Deserialized_product_data}")
             except Exception as e:
                 print(f"Error sending update message to Kafka: {e}")
     
@@ -156,6 +190,13 @@ async def update_product(product_id: int, product: productUpdate):
 
 @app.delete("/delete_product/{product_id}")
 async def delete_product(product_id: int):
+
+    proto_data= product_pb2.Product_proto(
+        id = product_id,
+    )
+
+    Serialized_product_data = proto_data.SerializeToString()
+
     async with AIOKafkaProducer(bootstrap_servers='broker:19092') as producer:
         with Session(engine) as session:
             product = session.get(Product, product_id)
@@ -165,10 +206,12 @@ async def delete_product(product_id: int):
             session.commit()
         
             # Send delete message to Kafka
-            delete_msg = json.dumps({"action": "delete", "product_id": product_id}).encode("utf-8")
+            #delete_msg = json.dumps({"action": "delete", "product_id": product_id}).encode("utf-8")
             try:
-                await producer.send_and_wait("product", delete_msg)
-                print(f"Sent delete message to Kafka: {delete_msg}")
+                await producer.send_and_wait("product", Serialized_product_data)
+                print(f"Sent delete message to Kafka: {Serialized_product_data}")
+                # await producer.send_and_wait("product", delete_msg)
+                # print(f"Sent delete message to Kafka: {delete_msg}")
             except Exception as e:
                 print(f"Error sending delete message to Kafka: {e}")
 

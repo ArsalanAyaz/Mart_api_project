@@ -13,6 +13,7 @@ pytest = "^8.2.2"
 psycopg = "^3.2.1"
 sqlmodel = "^0.0.19"
 aiokafka = "^0.11.0"
+protobuf = "^5.27.2"
 
 
 [build-system]

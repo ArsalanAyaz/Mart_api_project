@@ -1,9 +1,7 @@
-from sqlmodel import SQLModel, Field
+from sqlmodel import SQLModel
 from typing import Optional
 
-
 class UserBase(SQLModel):
-    # id: int | None = Field(default=None)
     name: str
     password: str
     email: str
@@ -12,8 +10,11 @@ class UserBase(SQLModel):
 class UserCreate(UserBase):
     pass
 
-class UserUpdate(UserBase):
-    pass
+class UserUpdate(SQLModel):
+    name: Optional[str] = None
+    password: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
 
 class UserPublic(UserBase):
     id: int

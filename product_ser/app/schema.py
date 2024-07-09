@@ -13,8 +13,11 @@ class productCreate(productBase):
     pass    
  
 
-class productUpdate(productBase):
-    pass 
+class productUpdate(SQLModel):
+
+    name: Optional[str] = None
+    description : Optional[str] = None
+    price: Optional[float] = None
 
 class productPublic(productBase):
     id: int

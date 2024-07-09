@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+message Users_proto {
+    int32 id = 1;          // User ID
+    string name = 2;      // User Name
+    string password = 3;  // User Password
+    string email = 4;     // User Email
+    string phone = 5;     // User Phone
+}

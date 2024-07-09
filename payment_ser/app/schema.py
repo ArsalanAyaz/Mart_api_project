@@ -28,6 +28,7 @@ class paymentUpdate(SQLModel):
 
 
 class paymentPublic(SQLModel):
+    
     id: int
     order_id: int
     user_id: int
