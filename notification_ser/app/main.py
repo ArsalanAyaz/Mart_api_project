@@ -15,11 +15,13 @@ from app import notifi_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
 
 
+# ===== function for order_ser topic
+
 async def consumer(topic, broker):
     consumer = AIOKafkaConsumer(
         topic, 
         bootstrap_servers=broker,
-        group_id="product_Cons")
+        group_id="order_notification_Consumer") # order_ser is producer and notification_ser is consumer
     
     await consumer.start()
     try:       
@@ -37,9 +39,16 @@ async def consumer(topic, broker):
 async def lifespan(app: FastAPI):
     print("=============== tables creating & Firing event ===========")
     create_db_and_tables()
-    task = asyncio.create_task(consumer("notification", "broker:19092"))
+    task = asyncio.create_task(consumer("order", "broker:19092")) # consumer of order-topic
     yield
     print("=============== tables created & Event fired ===========")
+
+
+
+
+
+
+
 
 app : FastAPI = FastAPI(
     lifespan=lifespan,

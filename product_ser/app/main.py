@@ -12,11 +12,13 @@ import asyncio
 from app import product_pb2
 
 
+# =========== fuction for inventory_ser topic
+
 async def start_consumer(topic, broker):
     kafka_consumer = AIOKafkaConsumer(
         topic,
         bootstrap_servers=broker,
-        group_id="product_Cons1"
+        group_id="inventory_product_Consumer" # inventory_ser is producer and product_ser is consumer
     )
 
     await kafka_consumer.start()
@@ -37,9 +39,12 @@ async def start_consumer(topic, broker):
 async def lifespan(app:FastAPI):
     print("=============== Tables creating & event firing ============")
     create_db_and_tables()
-    consumer_task = asyncio.create_task(start_consumer("product", "broker:19092"))
+    consumer_task = asyncio.create_task(start_consumer("inventory", "broker:19092")) # consumer of inventory-topic
     yield
     print("=============== Tables created & event fired ============")
+
+
+
 
 
 app = FastAPI(lifespan=lifespan)
@@ -67,13 +72,11 @@ async def create_product(product: productCreate):
 
 
     producer = AIOKafkaProducer(bootstrap_servers='broker:19092')
-    #productJson = json.dumps(product.__dict__).encode("utf-8")
-
-    #print(f"Sending message to Kafka: {productJson}")
+    
 
     await producer.start()
+
     try:
-        #await producer.send_and_wait("product", productJson)
         await producer.send_and_wait("product", serialized_product_data)
     except Exception as e:
         print(f"producer error : {e}")
@@ -110,26 +113,6 @@ def get_single_product(product_id: int):
             raise HTTPException(status_code=404, detail="product not found")
         return product
     
-
-
-
-
-
-# @app.patch("/update_product/{product_id}", response_model=productPublic)
-# def update_product(product_id: int, product: productUpdate):
-#     with Session(engine) as session:
-#         db_product = session.get(products, product_id)
-#         if not db_product:
-#             raise HTTPException(status_code=404, detail="product not found")
-#         product_data = product.model_dump(exclude_unset=True)
-#         for key, value in product_data.items():
-#             setattr(db_product, key, value)
-#         session.add(db_product)
-#         session.commit()
-#         session.refresh(db_product)
-#         return db_product
-
-
 
 
 @app.patch("/update_product/{product_id}", response_model=productPublic)
@@ -173,18 +156,6 @@ async def update_product(product_id: int, product: productUpdate):
                 print(f"Error sending update message to Kafka: {e}")
     
     return product_public
-
-
-
-# @app.delete("/delete_product/{product_id}")
-# def delete_product(product_id: int):
-#     with Session(engine) as session:
-#         product = session.get(products, product_id)
-#         if not product:
-#             raise HTTPException(status_code=404, detail="product not found")
-#         session.delete(product)
-#         session.commit()
-#         return {"ok": True}
 
 
 

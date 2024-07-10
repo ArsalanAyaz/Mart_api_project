@@ -9,11 +9,15 @@ import asyncio
 from app import order_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
 
+
+# ====== function for payment_service topic
+
+
 async def consumer(topic, broker):
     consumer = AIOKafkaConsumer(
         topic, 
         bootstrap_servers=broker,
-        group_id="order_Cons"
+        group_id="payment_order_Consumer" # payment_ser is producer and order_ser is consumer
     )
     
     await consumer.start()
@@ -32,9 +36,12 @@ async def consumer(topic, broker):
 async def lifespan(app: FastAPI):
     print("=============== tables creating & Firing event ===========")
     create_db_and_tables()
-    task = asyncio.create_task(consumer("order", "broker:19092"))
+    task = asyncio.create_task(consumer("payment", "broker:19092")) # consuming from payment-topic
     yield
     print("=============== tables created & Event fired ===========")
+
+
+
 
 app = FastAPI(
     lifespan=lifespan,
@@ -68,7 +75,7 @@ async def create_order(order: CreateOrder):
     await producer.start()
 
     try:
-        await producer.send_and_wait("order", Serialized_order_data)
+        await producer.send_and_wait("order", Serialized_order_data) # order is topic
     except Exception as e:
         print("Error sending order to Kafka:", e)
         raise HTTPException(status_code=500, detail="Error sending order to Kafka")

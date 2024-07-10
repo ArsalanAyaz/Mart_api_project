@@ -14,11 +14,17 @@ from sqlalchemy.orm import Session
 from app import inventory_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
 
+
+
+
+
+# ====== Consumer function for the order_service topic
+
 async def consumer(topic, broker):
     consumer = AIOKafkaConsumer(
         topic, 
         bootstrap_servers=broker,
-        group_id="inventory_Cons")
+        group_id="order_Inventory_consumer") # order_service is producer and inventory_ser is consumer
     
     await consumer.start()
     try:       
@@ -36,20 +42,21 @@ async def consumer(topic, broker):
 async def lifespan(app: FastAPI):
     print("=============== tables creating & Firing event ===========")
     create_db_and_tables()
-    task = asyncio.create_task(consumer("inventory", "broker:19092"))
+    task = asyncio.create_task(consumer("order", "broker:19092")) # consuming from order-topic
     yield
     print("=============== tables created & Event fired ===========")
+
+
+
+
+
+
+
 
 app : FastAPI = FastAPI(
     lifespan=lifespan,
     title="inventory service",
     version="0.0.1",
-    # servers=[
-    #     {
-    #         "url": "http://127.0.0.1:8002",
-    #         "description": "payment service server"
-    #     }
-    # ]
 )    
 
 
