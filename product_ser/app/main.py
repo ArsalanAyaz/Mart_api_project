@@ -12,6 +12,14 @@ import asyncio
 from app import product_pb2
 
 
+
+
+# Inventory Service to Product Service
+
+# inventory_service (Producer): When the inventory is updated, inventory_service publishes an InventoryUpdated event to the # inventory-events topic.
+# product_service (Consumer): product_service subscribes to the inventory-events topic, processes the InventoryUpdated event, # and updates product availability.
+
+
 # =========== fuction for inventory_ser topic
 
 async def start_consumer(topic, broker):

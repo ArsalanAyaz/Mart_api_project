@@ -18,6 +18,13 @@ from google.protobuf.timestamp_pb2 import Timestamp
 
 
 
+# Order Service to Inventory Service
+
+# order_service (Producer): When an order is placed, order_service publishes an OrderPlaced event to the order-events topic.
+# inventory_service (Consumer): inventory_service subscribes to the order-events topic, processes the OrderPlaced event, and updates the inventory.
+
+
+
 # ====== Consumer function for the order_service topic
 
 async def consumer(topic, broker):

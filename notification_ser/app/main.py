@@ -15,6 +15,15 @@ from app import notifi_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
 
 
+
+# Order Service to Notification Service
+
+# order_service (Producer): After processing an order, order_service publishes an OrderProcessed event to the order-processed # topic.
+# notification_service (Consumer): notification_service subscribes to the order-processed topic, processes the OrderProcessed # event, and sends notifications to the user.
+
+
+
+
 # ===== function for order_ser topic
 
 async def consumer(topic, broker):

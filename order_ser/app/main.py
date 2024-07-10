@@ -10,6 +10,15 @@ from app import order_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
 
 
+
+
+
+# Payment Service to Order Service
+
+# payment_service (Producer): Once a payment is processed, payment_service publishes a PaymentCompleted event to the # payment-events topic.
+# order_service (Consumer): order_service subscribes to the payment-events topic, processes the PaymentCompleted event, and # updates the order status.
+
+
 # ====== function for payment_service topic
 
 
