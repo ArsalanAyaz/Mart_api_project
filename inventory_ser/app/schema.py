@@ -10,6 +10,11 @@ class InventoryCreate(SQLModel):
     quantity: int
     location: Optional[str] = None
 
+class ProductCreate(SQLModel):
+
+    name: str
+    description : Optional[str] = None
+    price: float
 
 
 class InventoryPublic(SQLModel):
