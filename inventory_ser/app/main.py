@@ -1,18 +1,12 @@
-
-
 from fastapi import FastAPI, HTTPException, Query
 from sqlmodel import Session, select
 from contextlib import asynccontextmanager
-from app.db import create_db_and_tables
+from app.db import create_db_and_tables, engine
 from app.model import Inventory
 from app.schema import InventoryCreate, InventoryPublic, InventoryUpdate
 from aiokafka import AIOKafkaProducer, AIOKafkaConsumer
 import asyncio
 from app import inventory_pb2
-from app.db import engine
-from google.protobuf.timestamp_pb2 import Timestamp
-
-
 
 
 
@@ -20,7 +14,7 @@ async def start_consumer(topic, broker):
     kafka_consumer = AIOKafkaConsumer(
         topic,
         bootstrap_servers=broker,
-        group_id="product_inventory_Consumer"  
+        group_id="product_inventory_Consumer"
     )
 
     await kafka_consumer.start()
@@ -28,12 +22,20 @@ async def start_consumer(topic, broker):
         async for msg in kafka_consumer:
             print(f"Serialized message in consumer: {msg.value}")
             deserialized_inventory_data = inventory_pb2.Inventory_proto()
-            data = deserialized_inventory_data.ParseFromString(msg.value)
-            print(f"Deserialized message in consumer: {data}")
+            deserialized_inventory_data.ParseFromString(msg.value)
+            print(f"Deserialized message in consumer: {deserialized_inventory_data}")
 
-            # sending data from product-topic to inventory database 
+            # Convert the deserialized data to a dictionary
+            data_dict = {
+                # "id": deserialized_inventory_data.id,
+                "name": deserialized_inventory_data.name,
+                "description": deserialized_inventory_data.description,
+                "price": deserialized_inventory_data.price
+            }
+
+            # Sending data from product-topic to inventory database
             with Session(engine) as session:
-                db_inventory = Inventory.model_validate(data)
+                db_inventory = Inventory.model_validate(data_dict)
                 session.add(db_inventory)
                 session.commit()
                 session.refresh(db_inventory)
@@ -42,7 +44,6 @@ async def start_consumer(topic, broker):
         print(f"Consumer error: {e}")
     finally:
         await kafka_consumer.stop()
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -53,28 +54,20 @@ async def lifespan(app: FastAPI):
     print("=============== Tables created & event fired ============")
 
 
-app = FastAPI(lifespan=lifespan, title= "inventory service")
-
+app = FastAPI(lifespan=lifespan, title="inventory service")
 
 
 @app.get("/")
 def start():
     return {"service": "inventory service"}
 
-
-
-
 @app.post("/create_inventory", response_model=InventoryPublic)
 async def create_inventory(inventory: InventoryCreate):
-    proto_data = inventory_pb2.Inventory_proto()
-
-    # proto_data.product_id=inventory.product_id
-    # proto_data.quantity=inventory.quantity
-    # proto_data.location=inventory.location
-
-    proto_data.name=inventory.name
-    proto_data.description=inventory.description
-    proto_data.price=inventory.price
+    proto_data = inventory_pb2.Inventory_proto(
+        name=inventory.name,
+        description=inventory.description,
+        price=inventory.price
+    )
 
     serialized_inventory_data = proto_data.SerializeToString()
 
@@ -82,7 +75,7 @@ async def create_inventory(inventory: InventoryCreate):
     await producer.start()
     try:
         with Session(engine) as session:
-            db_inventory = Inventory.model_validate(inventory)
+            db_inventory = Inventory.model_validate(inventory.dict())
             session.add(db_inventory)
             session.commit()
             session.refresh(db_inventory)
@@ -95,37 +88,13 @@ async def create_inventory(inventory: InventoryCreate):
     finally:
         await producer.stop()
 
-    inventory_public = InventoryPublic(
-
-
-        # id=db_inventory.id,
-        # product_id=db_inventory.product_id,
-        # quantity=db_inventory.quantity,
-        # location=db_inventory.location,
-        # status=db_inventory.status,
-        # last_updated=db_inventory.last_updated,
-        
-        id=db_inventory.id,
-        name=db_inventory.name,
-        description=db_inventory.description,
-        price=db_inventory.price
-
-
-    )
-
-    return inventory_public
-
-
-
+    return InventoryPublic.from_orm(db_inventory)
 
 @app.get("/get_all_inventorys/", response_model=list[InventoryPublic])
 def get_all_inventorys(offset: int = 0, limit: int = Query(default=100, le=100)):
     with Session(engine) as session:
         inventorys = session.exec(select(Inventory).offset(offset).limit(limit)).all()
         return inventorys
-
-
-
 
 @app.get("/get_single_inventory/{inventory_id}", response_model=InventoryPublic)
 def get_single_inventory(inventory_id: int):
@@ -135,29 +104,14 @@ def get_single_inventory(inventory_id: int):
             raise HTTPException(status_code=404, detail="inventory not found")
         return inventory
 
-
-
-
 @app.patch("/update_inventory/{inventory_id}", response_model=InventoryPublic)
 async def update_inventory(inventory_id: int, inventory: InventoryUpdate):
-    proto_data = inventory_pb2.Inventory_proto()
-
-    # proto_data.id=inventory_id
-    # proto_data.product_id=inventory.product_id
-    # proto_data.quantity=inventory.quantity
-    # proto_data.location=inventory.location
-
-    # time = Timestamp()
-    # time.GetCurrentTime
-    # proto_data.last_updated.CopyFrom(time)
-
-    proto_data.id=inventory_id
-    proto_data.name=inventory.name
-    proto_data.description=inventory.description
-    proto_data.price=inventory.price
-
-
-
+    proto_data = inventory_pb2.Inventory_proto(
+        id=inventory_id,
+        name=inventory.name,
+        description=inventory.description,
+        price=inventory.price
+    )
 
     serialized_inventory_data = proto_data.SerializeToString()
 
@@ -173,42 +127,16 @@ async def update_inventory(inventory_id: int, inventory: InventoryUpdate):
             session.commit()
             session.refresh(db_inventory)
 
-            inventory_public = InventoryPublic(
-
-                    # id=db_inventory.id,
-                    # product_id=db_inventory.product_id,
-                    # quantity=db_inventory.quantity,
-                    # location=db_inventory.location,
-                    # status=db_inventory.status,
-                    # last_updated=db_inventory.last_updated,
-
-
-                id=db_inventory.id,
-                name=db_inventory.name,
-                description=db_inventory.description,
-                price=db_inventory.price
-
-
-            )
-
-          
-            
             try:
                 await producer.send_and_wait("inventory", serialized_inventory_data)
             except Exception as e:
                 print(f"Error sending update message to Kafka: {e}")
-    
-    return inventory_public
 
-
-
-
+    return InventoryPublic.from_orm(db_inventory)
 
 @app.delete("/delete_inventory/{inventory_id}")
 async def delete_inventory(inventory_id: int):
-    proto_data = inventory_pb2.Inventory_proto(
-        id=inventory_id,
-    )
+    proto_data = inventory_pb2.Inventory_proto(id=inventory_id)
     serialized_inventory_data = proto_data.SerializeToString()
 
     async with AIOKafkaProducer(bootstrap_servers='broker:19092') as producer:
@@ -225,11 +153,3 @@ async def delete_inventory(inventory_id: int):
                 print(f"Error sending delete message to Kafka: {e}")
 
     return {"ok": True}
-
-
-
-
-
-
-
-
