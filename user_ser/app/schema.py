@@ -10,6 +10,11 @@ class UserBase(SQLModel):
 class UserCreate(UserBase):
     pass
 
+class Login(SQLModel):
+    name: str
+    password: str
+
+
 class UserUpdate(SQLModel):
     name: Optional[str] = None
     password: Optional[str] = None
